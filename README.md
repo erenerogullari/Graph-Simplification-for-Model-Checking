@@ -9,10 +9,9 @@
 import networkx as nx
 from graphs import *
 
-# Create a balanced tree
 h = 3   # Height of the tree
 chld = [2,3,4]   # Number of children at each height
-G = create_tree(h=h, children=chld)
+G = create_tree(h=h, children=chld) # Create a balanced tree
 '''
 
 2. Call the algorithm to simplify the graph
@@ -21,7 +20,6 @@ G = create_tree(h=h, children=chld)
 from algorithm import *
 from IPython.display import display
 
-# Call the algorithm to simplify the graph
 qr = 2   # quantifier rank
 displays = True   # Display the progress
 G2 = simplify_graph(G, qr, displays)
