@@ -14,7 +14,7 @@ chld = [2,3,4]   # Number of children at each height
 G = create_tree(h=h, children=chld)
 ```
 
-2. Call the algorithm to simplify the graph
+2. Call the [algorithm](src/algorithm.py) to simplify the graph
 
 ```python
 from algorithm import *
