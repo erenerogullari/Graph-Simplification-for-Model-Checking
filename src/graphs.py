@@ -27,7 +27,7 @@ def create_tree(h: int, children: list = [], rmv: list = []) -> nx.classes.graph
     # Create the tree
     T = nx.Graph()
 
-    #  Create a list of id's of nodes at each height
+    # Create a list of id's of nodes at each height
     nodes_list = [[0]] + [[None]] * (h)
     last_id = 1
     for i in range(1, h + 1):
@@ -69,7 +69,7 @@ def create_tree(h: int, children: list = [], rmv: list = []) -> nx.classes.graph
         largest_comp = max(nx.connected_components(T), key=len)
         T = nx.induced_subgraph(T, largest_comp)
 
-    return
+    return T
 
 
 def create_kpartite(sizes: tuple, complete: bool = False) -> nx.classes.graph.Graph:
