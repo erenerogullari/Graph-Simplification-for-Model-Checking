@@ -2,7 +2,6 @@ import networkx as nx
 from networkx.algorithms import isomorphism
 import itertools
 from IPython.display import display
-import threading
 import random
 
 
@@ -167,7 +166,7 @@ def partition_subgraphs(G: nx.classes.graph.Graph, subgraphs: list) -> list:
     return subgraphs_partitioned
 
 
-def find_kmodules(G: nx.classes.graph.Graph, k: int, min_size: int) -> list:
+def find_kmodules(G: nx.classes.graph.Graph, k: int, min_size: int, displays: bool = False) -> list:
     """
     Finds a set of k-modules in the given graph
 
@@ -175,6 +174,7 @@ def find_kmodules(G: nx.classes.graph.Graph, k: int, min_size: int) -> list:
     G: The graph to check
     k: Size of each module
     min_size: Minimum number of k-modules the list should have
+    displays: Display the progress
 
     Return:
     M: A list of k-modules or an empty list if none found
@@ -195,13 +195,8 @@ def find_kmodules(G: nx.classes.graph.Graph, k: int, min_size: int) -> list:
     # OPTION 3: Partition the subraphs list by their number of edges descending into list of lists
     subgraphs_partitioned = partition_subgraphs(G, subgraphs)
 
-    # Lambda function that appends the subgraph to the list if they are k-modules - will be used for threading
-    append_kmodules = lambda G, M, sg: M.append(sg) if are_kmodules(G, M + [sg]) else None
 
-    # Total number of subraphs checked - for printing purposes
     total_checked = 0
-    display_id = f"display_{k}"
-    display("", display_id=display_id)
 
     # Iterate over subgraph partitions
     for subgraphs in subgraphs_partitioned:
@@ -211,24 +206,19 @@ def find_kmodules(G: nx.classes.graph.Graph, k: int, min_size: int) -> list:
             sg1 = subgraphs[i]
             M = [sg1]
 
-            # Create an empty list of threads
-            trds = []
             for j in range(i + 1, len(subgraphs)):
                 sg2 = subgraphs[j]
-                # Add function call to the threads list and start
-                thread = threading.Thread(target=append_kmodules, args=(G, M, sg2))
-                trds.append(thread)
-                thread.start()
+                if are_kmodules(G, M + [sg2]):
+                    M.append(sg2)             
 
-            # Waiting for threads to be finished...
-            for trd in trds:
-                trd.join()
-
-            # Increase the number of subgraphs checked and print
-            total_checked += 1
-            progress = total_checked / num_subgraphs
-            message = f'Looking for k={k}: {total_checked}/{num_subgraphs} ({progress:.1%})'
-            display(message, display_id=display_id, update=True)
+            # Displaying progress...
+            if displays:
+                # Increase the number of subgraphs checked and print
+                total_checked += 1
+                display_id = f'display_{k}'
+                progress = total_checked / num_subgraphs
+                message = f'Looking for k={k}: {total_checked}/{num_subgraphs} ({progress:.1%})'
+                display(message, display_id=display_id, update=True)
 
             # If M has more subgraphs than the minimum number needed then the set is found
             if len(M) >= min_size:
@@ -237,13 +227,14 @@ def find_kmodules(G: nx.classes.graph.Graph, k: int, min_size: int) -> list:
     return []
 
 
-def reduce_graph(G: nx.classes.graph.Graph, qr: int, k_max: int = 100) -> nx.classes.graph.Graph:
+def simplify_graph(G: nx.classes.graph.Graph, qr: int, displays: bool = False, k_max: int = 100) -> nx.classes.graph.Graph:
     """
     Algorithm for reducing the graph G according to the quantifier rank qr
 
     Arguments:
     G: The graph to check
     qr: Quantifier rank
+    displays: Display the progress
     k_max: Maximum size of k-modules to look for - used for avoiding long runtimes
 
     Return:
@@ -260,27 +251,53 @@ def reduce_graph(G: nx.classes.graph.Graph, qr: int, k_max: int = 100) -> nx.cla
 
     while k <= G2.number_of_nodes() / (qr + 1) and k <= k_max:
 
-        # print(f'Looking for k={k}:', end='')
+         # Displaying progress...
+        if displays:
+            display_id = f'display_{k}'
+            display("", display_id=display_id)
 
         has_kmodules = True
         while has_kmodules:
 
             # Checking for k-modules...
-            M = find_kmodules(G2, k, min_size=qr + 1)
+            M = find_kmodules(G2, k, min_size=qr + 1, displays=displays)
 
             if len(M) == 0:
                 # When there is no modules then stop looking for k
                 has_kmodules = False
             else:
                 # Removing |M| - qr of those from G2
-                print(f'Removing {M[qr:]} from {M}')
                 to_remove = [node for subgraph in M[qr:] for node in subgraph]
                 G2.remove_nodes_from(to_remove)
 
+                if displays:
+                    print(f'Removing {M[qr:]} from {M}')
+
         # Increase the k for the next step
         k += 1
-        print('-----------------------------------')
+        #print('-----------------------------------')
 
-    print('')
+    # Print the number of removed vertices
+    if displays:
+        print('\n------------------------------------------------------------------\n')
+        print(f'Removed {G.number_of_nodes() - G2.number_of_nodes()} vertices')
 
     return G2
+
+
+def test1():
+    display_id = 'display_1'
+    display("", display_id=display_id)
+
+    for i in range(100):
+        message = f'{i}/100'
+        display(message, display_id=display_id, update=True)
+        print('newprint')
+
+
+
+
+
+
+
+

@@ -25,7 +25,7 @@ def draw_graph(G: nx.classes.graph.Graph, planar: bool = False) -> None:
     plt.show()
 
 
-def draw_graphs(G1: nx.classes.graph.Graph, G2: nx.classes.graph.Graph, qr: int = -1, planar: bool = False) -> None:
+def draw_graphs(G1: nx.classes.graph.Graph, G2: nx.classes.graph.Graph, title: str = "", planar: bool = False) -> None:
     """
     Draws 2 graphs side to side
 
@@ -33,6 +33,7 @@ def draw_graphs(G1: nx.classes.graph.Graph, G2: nx.classes.graph.Graph, qr: int 
     G1: First graph to draw
     G2: Second graph to draw
     qr: Quantifier rank to print
+    title: Title of the plot
     planar: Whether to draw in planar form
 
     Return:
@@ -55,10 +56,7 @@ def draw_graphs(G1: nx.classes.graph.Graph, G2: nx.classes.graph.Graph, qr: int 
         nx.draw(G2, with_labels=True)
 
     # Name the plots
-    if qr != -1:
-        fig.suptitle(f'An example for quantifier rank qr={qr}')
+    if title:
+        fig.suptitle(title)
     subax1.set_title('Original Graph')
-    subax2.set_title('Resulting Graph')
-
-    # Print the number of removed vertices
-    print(f'Removed {G1.number_of_nodes() - G2.number_of_nodes()} vertices')
+    subax2.set_title('Simplified Graph')

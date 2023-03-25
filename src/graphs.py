@@ -2,6 +2,29 @@ import networkx as nx
 import random
 import itertools
 
+def create_complete(n) -> nx.classes.graph.Graph:
+    """
+    Creates a complete graph of size n
+
+    Arguments:
+    n: Size of the graph
+
+    Returns:
+    G: Resulting graph
+    """
+
+    # Create the graph
+    G = nx.Graph()
+
+    # Nodes and edges
+    nodes_list = list(range(n))
+    edge_list = list(itertools.combinations(nodes_list, 2))
+
+    G.add_nodes_from(nodes_list)
+    G.add_edges_from(edge_list)
+
+    return G
+
 
 def create_tree(h: int, children: list = [], rmv: list = []) -> nx.classes.graph.Graph:
     """
