@@ -3,7 +3,7 @@
 
 ## Usage
 
-1. The algorithm uses [NetworkX](https://networkx.org) library to model graphs. After installing the library simply create a graph or use one of the existing constructors in [graphs.py](src/graphs.py)
+1. The algorithm uses [NetworkX](https://networkx.org) library to model graphs. After installing the library, simply create a graph or use one of the existing constructors in [graphs.py](src/graphs.py)
 
 ```python
 import networkx as nx
@@ -14,7 +14,7 @@ chld = [2,3,4]   # Number of children at each height
 G = create_tree(h=h, children=chld)
 ```
 
-2. Call the algorithm to simplify the graph
+2. Call the [algorithm](src/algorithm.py) to simplify the graph
 
 ```python
 from algorithm import *
