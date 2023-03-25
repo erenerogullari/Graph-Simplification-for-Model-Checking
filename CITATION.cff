@@ -1,0 +1,27 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: Model Checking with K-Modules
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Eren
+    family-names: Erogullari
+    email: erenogullari@gmail.com
+repository-code: >-
+  https://github.com/erenerogullari/Model-Checking-with-kModules
+abstract: >-
+  A graph simplification algorithm that uses k-modules to
+  improve the efficiency of model checking.
+keywords:
+  - graph theory
+  - model checking
+  - k-modules
+  - graph simplification
+license: gnuplot
+commit: 67f33834181c0007dde2ab4e313d0e4fd470e97b
+version: 1.0.0
+date-released: '2023-03-25'
