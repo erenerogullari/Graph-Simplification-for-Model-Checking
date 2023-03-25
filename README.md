@@ -3,7 +3,7 @@
 
 ## Usage
 
-1. The algorithm uses [NetworkX](https://networkx.org) library to model graphs. After installing the library simply create a graph or use one of the existing constructors in [graphs.py](src/graphs.py)
+1. The algorithm uses [NetworkX](https://networkx.org) library to model graphs. After installing the library, simply create a graph or use one of the existing constructors in [graphs.py](src/graphs.py)
 
 ```python
 import networkx as nx
