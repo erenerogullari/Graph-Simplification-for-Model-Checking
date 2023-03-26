@@ -5,7 +5,7 @@ from IPython.display import display
 import random
 
 
-def is_kmodules(G: nx.classes.graph.Graph, nodes1: list, nodes2: list, testing: bool = False) -> bool:
+def is_kmodule(G: nx.classes.graph.Graph, nodes1: list, nodes2: list, testing: bool = False) -> bool:
     """
     Checks if 2 subgraphs are k-modules
 
@@ -109,7 +109,7 @@ def is_kmodules(G: nx.classes.graph.Graph, nodes1: list, nodes2: list, testing: 
     return False
 
 
-def are_kmodules(G: nx.classes.graph.Graph, M: list) -> bool:
+def are_kmodule(G: nx.classes.graph.Graph, M: list) -> bool:
     """
     Checks if a set of subgraphs are pairwise k-modules
 
@@ -129,7 +129,7 @@ def are_kmodules(G: nx.classes.graph.Graph, M: list) -> bool:
         for m2 in range(m1 + 1, len(M)):
 
             # If one such pair is found then return False
-            if not (is_kmodules(G, M[m1], M[m2])): return False
+            if not (is_kmodule(G, M[m1], M[m2])): return False
 
     # Return True if there is no pair that aren't k-modules
     return True
@@ -166,7 +166,7 @@ def partition_subgraphs(G: nx.classes.graph.Graph, subgraphs: list) -> list:
     return subgraphs_partitioned
 
 
-def find_kmodules(G: nx.classes.graph.Graph, k: int, min_size: int, displays: bool = False) -> list:
+def find_kmodule(G: nx.classes.graph.Graph, k: int, min_size: int, displays: bool = False) -> list:
     """
     Finds a set of k-modules in the given graph
 
@@ -208,7 +208,7 @@ def find_kmodules(G: nx.classes.graph.Graph, k: int, min_size: int, displays: bo
 
             for j in range(i + 1, len(subgraphs)):
                 sg2 = subgraphs[j]
-                if are_kmodules(G, M + [sg2]):
+                if are_kmodule(G, M + [sg2]):
                     M.append(sg2)             
 
             # Displaying progress...
@@ -260,7 +260,7 @@ def simplify_graph(G: nx.classes.graph.Graph, qr: int, displays: bool = False, k
         while has_kmodules:
 
             # Checking for k-modules...
-            M = find_kmodules(G2, k, min_size=qr + 1, displays=displays)
+            M = find_kmodule(G2, k, min_size=qr + 1, displays=displays)
 
             if len(M) == 0:
                 # When there is no modules then stop looking for k
