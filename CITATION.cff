@@ -10,7 +10,12 @@ type: software
 authors:
   - given-names: Eren
     family-names: Erogullari
-    email: erenogullari@gmail.com
+    email: e.erogullari@tu-berlin.de
+    affiliation: Technical University of Berlin (TUB)
+  - given-names: Stephan
+    family-names: Kreutzer
+    email: stephan.kreutzer@tu-berlin.de
+    affiliation: Technical University of Berlin (TUB)
 repository-code: >-
   https://github.com/erenerogullari/Model-Checking-with-kModules
 abstract: >-
@@ -24,4 +29,4 @@ keywords:
 license: gnuplot
 commit: 67f33834181c0007dde2ab4e313d0e4fd470e97b
 version: 1.0.0
-date-released: '2023-03-25'
+date-released: '2023-03-24'
