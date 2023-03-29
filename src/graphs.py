@@ -149,3 +149,45 @@ def create_kpartite(sizes: tuple, complete: bool = False) -> nx.classes.graph.Gr
     G.add_edges_from(unique_tuples)
 
     return G
+
+
+def create_random(n: int, p: float) -> nx.classes.graph.Graph:
+    """
+    Creates a random graph in a simple way
+
+    Arguments:
+    n: Number of nodes
+    p: Probability of an edge
+
+    Returns:
+    G: Resulting graph
+    """
+
+    # Create the graph
+    G = nx.Graph()
+
+    # Add the nodes
+    G.add_nodes_from(list(range(n)))
+
+    # Add the edges
+    for i in range(n):
+        for j in range(i + 1, n):
+            if random.random() < p:
+                G.add_edge(i, j)
+
+    return G
+
+
+def create_bounded_schrub_depth(T: nx.classes.graph.Graph, S: list, lamda: ) -> nx.classes.graph.Graph:
+    """
+    Creates a random graph of bounded schrub depth in a simple way
+
+    Arguments:
+    d: Depth of the tree model
+    m: Number of labels in the tree model
+
+    Returns:
+    G: Resulting graph
+    """
+
+

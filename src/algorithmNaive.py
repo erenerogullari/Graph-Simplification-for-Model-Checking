@@ -2,7 +2,7 @@ import networkx as nx
 from networkx.algorithms import isomorphism
 import itertools
 from IPython.display import display
-import random
+#import random
 
 
 def is_kmodule(G: nx.classes.graph.Graph, nodes1: list, nodes2: list, testing: bool = False) -> bool:
@@ -275,11 +275,9 @@ def simplify_graph(G: nx.classes.graph.Graph, qr: int, displays: bool = False, k
 
         # Increase the k for the next step
         k += 1
-        #print('-----------------------------------')
-
     # Print the number of removed vertices
     if displays:
-        print('\n------------------------------------------------------------------\n')
+        print('==============================================================')
         print(f'Removed {G.number_of_nodes() - G2.number_of_nodes()} vertices')
 
     return G2
