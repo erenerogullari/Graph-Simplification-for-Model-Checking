@@ -18,7 +18,6 @@ G = create_tree(h=h, children=chld)
 
 ```python
 from algorithmNaive import *
-from IPython.display import display
 
 qr = 2   # quantifier rank
 displays = True   # Display the progress
