@@ -17,7 +17,7 @@ G = create_tree(h=h, children=chld)
 2. Call the [algorithm](src/algorithm.py) to simplify the graph
 
 ```python
-from algorithm import *
+from algorithmNaive import *
 from IPython.display import display
 
 qr = 2   # quantifier rank
