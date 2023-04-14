@@ -55,6 +55,33 @@ def adjacency_to_graph(A: np.ndarray) -> nx.classes.graph.Graph:
     return G
 
 
+def induced_subgraph_matrix(A: np.ndarray, S: list) -> np.ndarray:
+    """
+    Finds the induced subgraph of a graph
+
+    Arguments:
+    A: Adjacency matrix
+    S: List of nodes
+
+    Returns:
+    A_S: Adjacency matrix of the induced subgraph
+    """
+
+    # Get the number of nodes
+    n = A.shape[0]
+
+    # Create the adjacency matrix
+    A_S = np.zeros((len(S), len(S)), dtype=int)
+
+    # Fill the matrix
+    for i in range(len(S)):
+        for j in range(i + 1, len(S)):
+            A_S[i, j] = A[S[i], S[j]]
+            A_S[j, i] = A_S[i, j]
+
+    return A_S
+
+
 def neighbors_diff(A: np.ndarray) -> np.ndarray:
     """
     Finds the symmetrical difference in neighbors between all pairs of nodes
@@ -114,7 +141,10 @@ def private_neigh(A: np.ndarray) -> np.ndarray:
 
 def partition_private_neigh(A: np.ndarray, N_priv: np.ndarray, a: int, r: int) -> dict:
     """
-    Partitions the private neighbors of 'a' by the number of private neighbors
+    Partitions (sorted asc.) the private neighbors of 'a' by the number of private neighbors s.t.
+        1. the partition has at least r elements and
+        2. the partition has the same number of edges as a
+
     Args:
         A: Adjacency matrix of the graph
         N_priv: Matrix of the private neighbors
@@ -138,7 +168,7 @@ def partition_private_neigh(A: np.ndarray, N_priv: np.ndarray, a: int, r: int) -
     partition = dict(sorted(partition.items(), key=lambda item: item[0]))
 
     # Remove the partitions with less than r elements
-    partition = {key: value for key, value in partition.items() if len(value) >= r}
+    # partition = {key: value for key, value in partition.items() if len(value) >= r}
 
     # For each partition remove the values who don't have the same number of edges as a1
     for key in partition:
@@ -175,25 +205,35 @@ def match_tuples(A: np.ndarray, N_priv: np.ndarray, a: int, b: int, k: int) -> d
     neighbors_a = np.where(A[a, :] == 1)[0]
     neighbors_b = np.where(A[b, :] == 1)[0]
 
-    # Number of neighbors to match
+    # Number of vertices to match
     n_a = len(neighbors_a)
     n_b = len(neighbors_a)
 
     # Create the matching
-    f = {}
+    f = {a: b}
 
     # Add the tuples to the matching
-    f[a] = b
 
     # If both vertices have each other as neighbors then remove them from the lists
     # This is symmetrical since the graph is undirected
+    # Since the conditions 1-2 are already covered in the previous steps
     if b in neighbors_a:
         neighbors_a = np.delete(neighbors_a, np.where(neighbors_a == b)[0])
+        n_a -= 1
         neighbors_b = np.delete(neighbors_b, np.where(neighbors_b == a)[0])
+        n_b -= 1
 
-    # Find a bijective matching
+    # Try creating a fixed points first
     for neigh_a in neighbors_a:
-        for neigh_b in neighbors_b:
+        if neigh_a in neighbors_b:
+            f[neigh_a] = neigh_a
+            # Remove the matched node from the lists
+            neighbors_a = np.delete(neighbors_a, np.where(neighbors_a == neigh_a)[0])
+            neighbors_b = np.delete(neighbors_b, np.where(neighbors_b == neigh_a)[0])
+
+    # Look for a and b's first degree neighbors
+    for neigh_a in neighbors_a:
+        for neigh_b in neighbors_b[::-1]:
             # Check if they have the same number of edges
             if np.sum(A[neigh_a, :]) == np.sum(A[neigh_b, :]):
                 # Check if they have the same number of private neighbors from each other,
@@ -204,6 +244,14 @@ def match_tuples(A: np.ndarray, N_priv: np.ndarray, a: int, b: int, k: int) -> d
                     neighbors_b = np.delete(neighbors_b, np.where(neighbors_b == neigh_b)[0])
                     break
 
+    # If the matching does not start with creating fixed points then do this
+    # In order to avoid unnecessary matchings see if the matching can have more fixed points
+    # for v in f.keys():
+    #     if f[v] in f.keys() and f[f[v]] == v:
+    #         tmp = f[v]
+    #         f[v] = v
+    #         f[tmp] = tmp
+
     # Check if the matching is bijective
     if len(f.keys()) == n_a + 1 and len(f.values()) == n_b + 1:
         return f
@@ -211,140 +259,195 @@ def match_tuples(A: np.ndarray, N_priv: np.ndarray, a: int, b: int, k: int) -> d
         return {}
 
 
-def order_tuples(A: np.ndarray, nodes: list, matchings: list) -> list:
+def find_2ktuples(A: np.ndarray, N_priv: np.ndarray, a: int, b: int, k: int) -> list:
+    """
+    Finds 2 k-tuples using the neighbors of a and b
+    Args:
+        A: Adjacency matrix
+        N_priv: Matrix of private neighbors
+        a: First node
+        b: Second node
+        k: Size of the k-tuples
+
+    Returns:
+        M: List of k-tuples
+    """
+
+    # Create an empty list for the k-tuples
+    M = []
+
+    # First match the nodes using their 1st deg neighbors
+    matching = match_tuples(A, N_priv, a, b, k)
+
+    # Pick the matchings that are not matched to themselves
+    f = {}
+    for i in matching.keys():
+        if matching[i] != i:
+            f[i] = matching[i]
+
+    # If the matching is empty or bigger than k then return an empty list
+    if len(f) == 0 or len(f) > k:
+        return []
+
+    # Add the matchings to the tuples
+    M.append(tuple(f.keys()))
+    M.append(tuple(f.values()))
+
+    # If there are less than k nodes then extend the tuples
+    if len(M[0]) < k:
+        # Get the neighbors of the nodes
+        possible_nbrs_a = list(f.keys())
+        possible_nbrs_a.remove(a)
+        # print('Psb nbrs: ', possible_nbrs_a)
+        for nbr_a in possible_nbrs_a:
+            nbr_b = f[nbr_a]
+            # Match the 2 neighbors
+            matching2 = match_tuples(A, N_priv, nbr_a, nbr_b, k)
+            # print('Matching ', nbr_a, ' -> ', nbr_b, ': ', matching2)
+            # Pick the matchings that are not matched to themselves
+            for i in matching2.keys():
+                # If the matching is valid, and it's not already in the tuples
+                # and there is still space in the tuple then add it
+                if matching2[i] != i and i not in M[0] and i not in M[1] and len(M[0]) < k:
+                    # Extend f and M
+                    f[i] = matching2[i]
+                    M[0] += (i,)
+                    M[1] += (matching2[i],)
+
+            # If there are k elements in M then break
+            if len(M[0]) == k:
+                break
+
+    # If the tuples can't be extended then return empty list
+    if len(M[0]) != k:
+        return []
+    else:
+        return M
+
+
+def add_3rd_ktuple(A: np.ndarray, N_priv: np.ndarray, M: list, c: int) -> list:
     """
     Orders 3 tuples in the k-module
     Args:
         A: Adjacency matrix
-        nodes: List of nodes
-        matchings: List of matchings
-
+        N_priv: Matrix of private neighbors
+        M: List of k-tuples
+        c: Third node
     Returns:
-        M: Subset of the K-module
+        M_: the extended k-module
     """
 
-    # Check if the matchins correspond to the number of nodes
-    if not(len(nodes) == 3 and len(matchings) == 3):
-        # Raise an error
-        raise ValueError(f'The number of matchings ({len(matchings)}) '
-                         f'does not correspond to the number of nodes ({len(nodes)})')
+    # Check if there are 2 k-tuples in M
+    if len(M) != 2:
+        raise ValueError(f'The number of tuples ({len(M)}) is not 2')
 
-    # Create the k-module
-    M = [(node,) for node in nodes]
+    # Match the 3rd node with the first 2 nodes
+    k = len(M[0])
+    f = dict(zip(M[0], M[1]))
+    mtch1 = match_tuples(A, N_priv, c, M[0][0], k)
+    mtch2 = match_tuples(A, N_priv, c, M[1][0], k)
 
-    # Get the neighbors of the nodes
-    neighbors = [np.where(A[node, :] == 1)[0] for node in nodes]
+    # Pick the matchings that are not matched to themselves and not in the tuples
+    f1, f2 = {}, {}
+    keys1 = list(mtch1.keys())
+    keys2 = list(mtch2.keys())
+    for i in range(len(keys1)):
+        key1 = keys1[i]
+        key2 = keys2[i]
+        if mtch1[key1] != key1 and key1 not in M[0] and key1 not in M[1]:
+            f1[key1] = mtch1[key1]
+        if mtch2[key2] != key2 and key1 not in M[0] and key1 not in M[1]:
+            f2[key2] = mtch2[key2]
 
-    # Iterate over the neighbors and add them into the module
-    for i in range(len(neighbors)):
-        for j in range(len(neighbors[i])):
-            # Get the neighbor
-            neighbor = neighbors[i][j]
+    # If the matching are empty or bigger than k then return the original k-module
+    if len(f1) == 0 or len(f1) > k or len(f2) == 0 or len(f2) > k:
+        return M
 
-            # Check if the neighbor is already in any tuple in the module
-            if neighbor in M[0] or neighbor in M[1] or neighbor in M[2]:
-                continue
+    # Create the extended k-module
+    M_ = [M[0], M[1], tuple(f1.keys())]
 
-            # Check if the neighbor is the neighbor of all other nodes
-            if neighbor in neighbors[(i + 1) % 3] and neighbor in neighbors[(i + 2) % 3]:
-                # Check if the neighbor is matched to itself
-                mtch = [matching[neighbor] == neighbor for matching in matchings]
-                if all(mtch):
-                    # Jump to the next neighbor since it is not in the tuple (for now)
-                    continue
-                elif any(mtch):
-                    # This shouldn't happen
-                    raise ValueError(f'{neighbor} is matched to itself in f{matchings[mtch.index(True)] + 1}')
-                else:
-                    # Add it to the current module
-                    M[i] += (neighbor,)
-            # Check if the neighbor is also the neighbor of another node
-            elif neighbor in neighbors[(i + 1) % 3]:
-                # Add neighbor to the module who is not a neighbor of this one
-                M[(i + 2) % 3] += (neighbor,)
-            elif neighbor in neighbors[(i + 2) % 3]:
-                # Add neighbor to the module who is not a neighbor of this one
-                M[(i + 1) % 3] += (neighbor,)
+    # Extend the 3rd tuple if needed
+    if len(M_[2]) < k:
+        # Get the neighbors of the nodes
+        keys_list = list(f1.keys())
+        possible_nbrs_c = np.delete(keys_list, np.where(keys_list == c)[0])
+        for nbr_c in possible_nbrs_c:
+            nbr_a = f1[nbr_c]
+            nbr_b = f2[nbr_c]
+
+            # Match the 2 neighbors
+            mtch3 = match_tuples(A, N_priv, nbr_c, nbr_a, k)
+            mtch4 = match_tuples(A, N_priv, nbr_c, nbr_b, k)
+
+            # Pick the matchings that are not matched to themselves and that are not if f1
+            f3, f4 = {}, {}
+            keys3 = list(mtch3.keys())
+            keys4 = list(mtch4.keys())
+            for i in range(len(keys3)):
+                key3 = keys3[i]
+                key4 = keys4[i]
+                if mtch3[key3] != key3 and key3 not in f1.keys():
+                    f3[key3] = mtch3[key3]
+                if mtch4[key4] != key4 and key4 not in f2.keys():
+                    f4[key4] = mtch4[key4]
+
+            # Check if the matchings are transitive
+            # transitive = [f[f3[i]] == f4[i] for i in f3.keys()]
+            # if not all(transitive):
+            #     return M
+
+            for i in f3.keys():
+                if i not in M_[0] and i not in M_[1] and i not in M_[2] and len(M_[2]) < k:
+                    # Extend f1, f2 and M_[2]
+                    f1[i] = f3[i]
+                    f2[i] = f4[i]
+                    M_[2] += (i,)
+
+            # If there are k elements in M then break
+            if len(M_[2]) == k:
+                break
+
+    # If the tuple can't be extended then return M
+    if len(M_[2]) != k:
+        return M
+
+    # Reassign nodes to tuples if they are common neighbors
+    t_a, t_b, t_c = list(M_[0]), list(M_[1]), list(M_[2])
+    T_a = induced_subgraph_matrix(A, t_a)
+    T_c = induced_subgraph_matrix(A, t_c)
+
+    if not(np.array_equal(T_a, T_c)):
+        row_indices = np.where(~(T_a == T_c).all(axis=1))[0]
+        for i in row_indices:
+            # Try swapping the nodes in t_a and t_c
+            t_a[i], t_b[i] = t_b[i], t_a[i]
+
+            # Check if now the induced subgraphs are equal
+            if np.array_equal(induced_subgraph_matrix(A, t_a), induced_subgraph_matrix(A, t_c)):
+                break
             else:
-                # Add it to the current module
-                M[i] += (neighbor,)
+                # Revert the swap
+                t_a[i], t_b[i] = t_b[i], t_a[i]
 
-    return M
+    M_ = [tuple(t_a), tuple(t_b), tuple(t_c)]
+
+    return M_
 
 
-def extend_module(A: np.ndarray, M: list, v: int, matchings: list) -> list:
+def extend_module(A: np.ndarray, N_priv: np.ndarray, M: list, v: int) -> list:
     """
     Extends the k-module by adding another tuple (v, ...)
     Args:
         A: Adjacency matrix
+        N_priv: Private neighbors
         M: K-module
         v: Node to add to the k-module
-        matchings: List of matchings
 
     Returns:
         M: Extended k-module
     """
 
-    # Check if the matchings length is 3
-    if len(matchings) != 3:
-        raise ValueError(f'The number of matchings ({len(matchings)}) is not 3')
-
-    # Check if M has at least 3 tuples already
-    if len(M) < 3:
-        raise ValueError(f'The number of tuples in M ({len(M)}) is less than 3')
-
-    # Get the neighbors of the nodes
-    neighbors_a1 = np.where(A[M[0][0], :] == 1)[0]
-    neighbors_b1 = np.where(A[M[1][0], :] == 1)[0]
-    neighbors_c1 = np.where(A[M[2][0], :] == 1)[0]
-    neighbors_v = np.where(A[v, :] == 1)[0]
-
-    # Get the common neighbors of a1, b1, and c1
-    common_neighbors = np.intersect1d(neighbors_a1, np.intersect1d(neighbors_b1, neighbors_c1))
-
-    # Union of v's neighbors and the common neighbors minus the nodes in M
-    t = [vertex for tuple_ in M for vertex in tuple_]
-    possible_nodes = np.setdiff1d(np.union1d(neighbors_v, common_neighbors), t)
-
-    # Copy M
-    M_ = M.copy()
-
-    # Add v as a new tuple to M
-    M_.append((v,))
-
-    # Iterate over v's neighbors and extend the module
-    for i in range(len(possible_nodes)):
-        # Get the neighbor
-        node = possible_nodes[i]
-
-        # List of booleans whether the neighbor is the neighbor of other nodes
-        is_neighbor = [node in neighbors_a1, node in neighbors_b1, node in neighbors_c1]
-        # Check if the neighbor is the neighbor of all other nodes
-        if all(is_neighbor):
-            # Check if the neighbor is matched to itself in all matching
-            mtch = [matching[node] == node for matching in matchings]
-            if all(mtch):
-                # Jump to the next neighbor
-                continue
-            else:
-                # Add it to the last module
-                M_[-1] += (node,)
-        # Check if the neighbor is not the neighbor of any other nodes
-        elif not any(is_neighbor):
-            # Add it to the last module
-            M_[-1] += (node,)
-        # Check if the neighbor is the neighbor of some nodes
-        else:
-            # This shouldn't happen, probably some error occurred in the previous steps
-            raise ValueError(f'{node} is the neighbor of some but not all of a1, b1, and c1')
-
-    # Check if the tuple is valid
-    if len(M_[-1]) != len(M[0]):
-        # Return the original module
-        return M
-    else:
-        # Return the extended module
-        return M_
+    # TODO: Implement
 
 
 def find_kmodule(A: np.ndarray, k: int, r: int) -> list:
@@ -367,7 +470,7 @@ def find_kmodule(A: np.ndarray, k: int, r: int) -> list:
     M = []
 
     # Pick a1
-    for a1 in range(1, 2):
+    for a1 in range(1, 2):  # TODO: Change to range(A.shape[0])
         # Partition a1's private neighbors indices by the number of a1's private neighbors from that vertex
         partition = partition_private_neigh(A, N_priv, a1, r)
 
@@ -375,65 +478,38 @@ def find_kmodule(A: np.ndarray, k: int, r: int) -> list:
         for key in partition:
             P = partition[key]
             startId = 0
+            b1, c1, v = -1, -1, -1
 
             # Pick b1
             for id_b1, b1 in enumerate(P):
                 startId += 1
 
-                # Match a1 and b1
-                f1 = match_tuples(A, N_priv, a1, b1, k)
-
-                # If there is a matching start looking for c1
-                if f1:
-                    M = [tuple(f1.keys()), tuple(f1.values())]
-                    # Remove the nodes who are in both tuples
-                    for node in M[0]:
-                        if node in M[1]:
-                            M[0] = tuple([n for n in M[0] if n != node])
-                            M[1] = tuple([n for n in M[1] if n != node])
-                    print(f'2 tuples: {M}')
+                M = find_2ktuples(A, N_priv, a1, b1, k)
+                if len(M) == 2:
+                    print(f'For {a1} and {b1}, M is: {M}')
                     break
 
             # Pick c1
             for id_c1, c1 in enumerate(P[startId:]):
                 startId += 1
-                # Match a1 and b1 with c1
-                f2 = match_tuples(A, N_priv, b1, c1, k)
-                f3 = match_tuples(A, N_priv, a1, c1, k)
+                M = add_3rd_ktuple(A, N_priv, M, c1)
 
-                # If there is a matching continue
-                if f2 and f3:
-                    print()
-                    print(f'f1 ({a1}-{b1}): {f1})')
-                    print(f'f2 ({b1}-{c1}): {f2})')
-                    print(f'f3 ({a1}-{c1}): {f3})')
-                    # Order the tuples
-                    M = order_tuples(A, [a1, b1, c1], [f1, f2, f3])
-                    print(f'3 Ordered tuples: {M}')
+                if len(M) == 3:
                     break
 
             # Find the remaining tuples
             for id_v, v in enumerate(P[startId:]):
                 # Match v with a1, b1, and c1
-                f4 = match_tuples(A, N_priv, a1, v, k)
-                f5 = match_tuples(A, N_priv, b1, v, k)
-                f6 = match_tuples(A, N_priv, c1, v, k)
-
-                # If there is a matching continue
-                if f4 and f5 and f6:
-                    print()
-                    print(f'f4 ({a1}-{v}): {f4})')
-                    print(f'f5 ({b1}-{v}): {f5})')
-                    print(f'f6 ({c1}-{v}): {f6})')
-                    # Extend the module if possible
-                    M = extend_module(A, M, v, [f4, f5, f6])
-                    print(f'Extended module: {M}')
+                # TODO: Implement matching
+                matchings = [None, None, None]
 
     return M
 
 
 # Main
 from plot import *
+
+
 def print_array(A: np.ndarray):
     """
     Prints an array in a nice format
@@ -451,36 +527,55 @@ def print_array(A: np.ndarray):
 if __name__ == "__main__":
     # Create the graph
     G = nx.Graph()
-    G.add_nodes_from(range(13))
+    G.add_nodes_from(range(17))
     G.add_edges_from([(0, 1), (1, 2), (1, 3),
-                        (0, 4), (4, 5), (4, 6),
-                        (0, 7), (7, 8), (7, 9),
-                        (0, 10), (10, 11), (10, 12)])
+                      (0, 4), (4, 5), (4, 6),
+                      (0, 7), (7, 8), (7, 9),
+                      (0, 10), (10, 11), (10, 12),
+                      (3, 13), (6, 14), (9, 15), (12, 16),
+                      (13, 17), (14, 17), (15, 17), (16, 17)
+                      ])
 
     # Convert the graph to an adjacency matrix
     A = graph_to_adjacency(G)
-    # print(A)
 
     # Find a k-module
     print('First graph:')
-    M = find_kmodule(A, k=4, r=2)
+    # M = find_kmodule(A, k=4, r=2)
 
     ###############################################################################################
     G2 = nx.Graph()
-    G2.add_nodes_from(range(13))
-    G2.add_edges_from([ (0, 1), (1, 5), (1, 8), (1,11), (1, 3), (2, 3),
-                        (0, 4), (4, 2), (4, 8), (4,11), (4, 6), (5, 6),
-                        (0, 7), (7, 2), (7, 5), (7,11), (7, 9), (8, 9),
-                        (0, 10), (10, 2), (10, 5), (10, 8), (10, 12), (11, 12)
-                        ])
+    G2.add_nodes_from(range(17))
+    G2.add_edges_from([(0, 1), (1, 5), (1, 8), (1, 11), (1, 3), (2, 3),
+                       (0, 4), (4, 2), (4, 8), (4, 11), (4, 6), (5, 6),
+                       (0, 7), (7, 2), (7, 5), (7, 11), (7, 9), (8, 9),
+                       (0, 10), (10, 2), (10, 5), (10, 8), (10, 12), (11, 12),
+                       # (3, 13), (3, 14), (3, 15), (3, 16),
+                       # (6, 14), (6, 13), (6, 15), (6, 16),
+                       # (9, 15), (9, 13), (9, 14), (9, 16),
+                       # (12, 16), (12, 13), (12, 14), (12, 15),
+                       (3, 17), (6, 17), (9, 17), (12, 17)
+                       ])
 
     # Convert the graph to an adjacency matrix
     A2 = graph_to_adjacency(G2)
-    # print(A2)
 
     print('----------------------------------------------------')
     print('Second graph:')
-    M2 = find_kmodule(A2, k=4, r=2)
+    M2 = find_kmodule(A2, k=3, r=2)
+
+    # N_priv = private_neigh(A2)
+    # M = find_ktuples(A2, N_priv, [1, 10], k=4)
+    # print('M: ', M)
 
     # Print the k-module
     # print(M)
+
+    # G3 = nx.Graph()
+    # G3.add_nodes_from(range(4))
+    # G3.add_edges_from([(0, 1), (0, 3), (2, 1), (2, 3)])
+    #
+    # A3 = graph_to_adjacency(G3)
+    # N_priv = private_neigh(A3)
+    # f = match_tuples(A3, N_priv, 0, 2, 2)
+    # print(f)
