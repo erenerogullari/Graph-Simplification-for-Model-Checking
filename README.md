@@ -1,4 +1,4 @@
-# Model Checking with K-Modules
+# Graph Simplification for Model Checking
  A graph simplification algorithm that uses k-modules to improve the efficiency of model checking on graphs.
 
 ## Usage
