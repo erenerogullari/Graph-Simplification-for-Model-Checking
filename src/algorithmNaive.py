@@ -2,7 +2,6 @@ import networkx as nx
 from networkx.algorithms import isomorphism
 import itertools
 from IPython.display import display
-#import random
 
 
 def is_kmodule(G: nx.classes.graph.Graph, nodes1: list, nodes2: list, testing: bool = False) -> bool:
@@ -195,7 +194,6 @@ def find_kmodule(G: nx.classes.graph.Graph, k: int, min_size: int, displays: boo
     # OPTION 3: Partition the subraphs list by their number of edges descending into list of lists
     subgraphs_partitioned = partition_subgraphs(G, subgraphs)
 
-
     total_checked = 0
 
     # Iterate over subgraph partitions
@@ -209,9 +207,9 @@ def find_kmodule(G: nx.classes.graph.Graph, k: int, min_size: int, displays: boo
             for j in range(i + 1, len(subgraphs)):
                 sg2 = subgraphs[j]
                 if are_kmodule(G, M + [sg2]):
-                    M.append(sg2)             
+                    M.append(sg2)
 
-            # Displaying progress...
+                    # Displaying progress...
             if displays:
                 # Increase the number of subgraphs checked and print
                 total_checked += 1
@@ -227,7 +225,7 @@ def find_kmodule(G: nx.classes.graph.Graph, k: int, min_size: int, displays: boo
     return []
 
 
-def simplify_graph(G: nx.classes.graph.Graph, qr: int, displays: bool = False, k_max: int = 100) -> nx.classes.graph.Graph:
+def simplify_graph(G: nx.Graph, qr: int, displays: bool = False, k_max: int = 5) -> nx.classes.graph.Graph:
     """
     Algorithm for reducing the graph G according to the quantifier rank qr
 
@@ -251,7 +249,7 @@ def simplify_graph(G: nx.classes.graph.Graph, qr: int, displays: bool = False, k
 
     while k <= G2.number_of_nodes() / (qr + 1) and k <= k_max:
 
-         # Displaying progress...
+        # Displaying progress...
         if displays:
             display_id = f'display_{k}'
             display("", display_id=display_id)
@@ -281,21 +279,3 @@ def simplify_graph(G: nx.classes.graph.Graph, qr: int, displays: bool = False, k
         print(f'Removed {G.number_of_nodes() - G2.number_of_nodes()} vertices')
 
     return G2
-
-
-def test1():
-    display_id = 'display_1'
-    display("", display_id=display_id)
-
-    for i in range(100):
-        message = f'{i}/100'
-        display(message, display_id=display_id, update=True)
-        print('newprint')
-
-
-
-
-
-
-
-

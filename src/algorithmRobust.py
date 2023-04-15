@@ -1,10 +1,12 @@
 import networkx as nx
 import numpy as np
+from networkx.algorithms import isomorphism
+from graphs import *
 
 
 def graph_to_adjacency(G: nx.classes.graph.Graph) -> np.ndarray:
     """
-    Converts a graph to an adjacency matrix
+    Converts a graph to an adjacency matrix, considering the removed nodes
 
     Arguments:
     G: Graph to convert
@@ -13,16 +15,22 @@ def graph_to_adjacency(G: nx.classes.graph.Graph) -> np.ndarray:
     A: Adjacency matrix
     """
 
-    # Get the number of nodes
-    n = G.number_of_nodes()
+    # Get the nodes in G as a list
+    nodes = list(G.nodes)
+
+    # Get the node with max value
+    n = max(nodes)
 
     # Create the adjacency matrix
     A = np.zeros((n, n), dtype=int)
 
     # Fill the matrix
     for i in range(n):
+        if i not in nodes:
+            A[i, i] = -1
+            continue
         for j in range(i + 1, n):
-            if G.has_edge(i, j):
+            if j in nodes and G.has_edge(i, j):
                 A[i, j] = 1
                 A[j, i] = 1
 
@@ -31,7 +39,7 @@ def graph_to_adjacency(G: nx.classes.graph.Graph) -> np.ndarray:
 
 def adjacency_to_graph(A: np.ndarray) -> nx.classes.graph.Graph:
     """
-    Converts an adjacency matrix to a graph
+    Converts an adjacency matrix to a graph considering the removed nodes
 
     Arguments:
     A: Adjacency matrix
@@ -44,7 +52,9 @@ def adjacency_to_graph(A: np.ndarray) -> nx.classes.graph.Graph:
     G = nx.Graph()
 
     # Add the nodes
-    G.add_nodes_from(range(A.shape[0]))
+    for i in range(A.shape[0]):
+        if A[i][i] != -1:
+            G.add_node(i)
 
     # Add the edges
     for i in range(A.shape[0]):
@@ -53,6 +63,34 @@ def adjacency_to_graph(A: np.ndarray) -> nx.classes.graph.Graph:
                 G.add_edge(i, j)
 
     return G
+
+
+def remove_nodes(A: np.ndarray, S: list) -> np.ndarray:
+    """
+    Removes nodes from an adjacency matrix by setting the elements on their row and column to 0
+    and the elements on the diagonal to -1
+
+    Arguments:
+    A: Adjacency matrix
+    S: List of nodes to remove
+
+    Returns:
+    A_S: Adjacency matrix with the nodes removed
+    """
+
+    # Get the number of nodes
+    n = A.shape[0]
+
+    # Create the adjacency matrix
+    A_S = np.copy(A)
+
+    # Remove the nodes
+    for i in S:
+        A_S[i, :] = 0
+        A_S[:, i] = 0
+        A_S[i, i] = -1
+
+    return A_S
 
 
 def induced_subgraph_matrix(A: np.ndarray, S: list) -> np.ndarray:
@@ -139,17 +177,20 @@ def private_neigh(A: np.ndarray) -> np.ndarray:
     return N_priv
 
 
-def partition_private_neigh(A: np.ndarray, N_priv: np.ndarray, a: int, r: int) -> dict:
+def partition_private_neigh(A: np.ndarray, N_priv: np.ndarray, a: int, k: int, qr: int) -> dict:
     """
     Partitions (sorted asc.) the private neighbors of 'a' by the number of private neighbors s.t.
         1. the partition has at least r elements and
         2. the partition has the same number of edges as a
+        3. each element in partition has the same number of private neighbors as a, and it's less than k,
+                i.e. |N_priv[a][v]| = |N_priv[v][a]| <= k
 
     Args:
         A: Adjacency matrix of the graph
         N_priv: Matrix of the private neighbors
         a: Node to partition
-        r: Quantifer rank
+        k: Max number of private neighbors
+        qr: Quantifer rank
     Returns:
         partition: Partition of the private neighbors of a
     """
@@ -159,7 +200,9 @@ def partition_private_neigh(A: np.ndarray, N_priv: np.ndarray, a: int, r: int) -
 
     # Fill the partition
     for i in range(len(N_priv[a])):
-        if N_priv[a][i] not in partition:
+        if i == a or N_priv[a][i] > k or N_priv[a][i] != N_priv[i][a] or A[i][i] == -1:
+            continue
+        elif N_priv[a][i] not in partition:
             partition[N_priv[a][i]] = [i]
         else:
             partition[N_priv[a][i]].append(i)
@@ -168,7 +211,7 @@ def partition_private_neigh(A: np.ndarray, N_priv: np.ndarray, a: int, r: int) -
     partition = dict(sorted(partition.items(), key=lambda item: item[0]))
 
     # Remove the partitions with less than r elements
-    # partition = {key: value for key, value in partition.items() if len(value) >= r}
+    # partition = {key: value for key, value in partition.items() if len(value) >= qr}
 
     # For each partition remove the values who don't have the same number of edges as a1
     for key in partition:
@@ -176,7 +219,7 @@ def partition_private_neigh(A: np.ndarray, N_priv: np.ndarray, a: int, r: int) -
                           len(np.where(A[a, :] == 1)[0]) == len(np.where(A[value, :] == 1)[0])]
 
     # Remove the partitions with less than r elements
-    partition = {key: value for key, value in partition.items() if len(value) >= r}
+    partition = {key: value for key, value in partition.items() if len(value) >= qr}
 
     return partition
 
@@ -223,7 +266,7 @@ def match_tuples(A: np.ndarray, N_priv: np.ndarray, a: int, b: int, k: int) -> d
         neighbors_b = np.delete(neighbors_b, np.where(neighbors_b == a)[0])
         n_b -= 1
 
-    # Try creating a fixed points first
+    # Try creating fixed points first
     for neigh_a in neighbors_a:
         if neigh_a in neighbors_b:
             f[neigh_a] = neigh_a
@@ -257,6 +300,40 @@ def match_tuples(A: np.ndarray, N_priv: np.ndarray, a: int, b: int, k: int) -> d
         return f
     else:
         return {}
+
+
+def satisfies_outer(A: np.ndarray, M: list) -> bool:
+    """
+    Checks if a list of k-tuples satisfies the outer neighborhood conditions
+
+    Arguments:
+    A: Adjacency matrix of the graph to find the k-module in
+    M: List of k-tuples
+
+    Returns:
+    is_valid: True if the list of k-tuples is a k-module, False otherwise
+    """
+
+    # Check if there are 2 k-tuples in M
+    if len(M) < 2:
+        raise ValueError(f'The number of tuples ({len(M)}) is less than 2')
+
+    # Neccesary functions
+    t = set([item for sublist in M for item in sublist])
+    outer_neighs = lambda v: set(np.where(A[v, :] == 1)[0]).difference(t)
+    condition = lambda v1, v2: outer_neighs(v1) == outer_neighs(v2)
+
+    k = len(M[0])
+    for i in range(len(M)):
+        for j in range(i + 1, len(M)):
+            satisfies_outer = [condition(M[i][l], M[j][l]) for l in range(k)]
+            if not all(satisfies_outer):
+                outer1 = outer_neighs(M[i][-1])
+                outer2 = outer_neighs(M[j][-1])
+                nbr = np.where(A[M[j][-1], :] == 1)[0]
+                return False
+
+    return True
 
 
 def find_2ktuples(A: np.ndarray, N_priv: np.ndarray, a: int, b: int, k: int) -> list:
@@ -314,38 +391,50 @@ def find_2ktuples(A: np.ndarray, N_priv: np.ndarray, a: int, b: int, k: int) -> 
                     M[0] += (i,)
                     M[1] += (matching2[i],)
 
-            # If there are k elements in M then break
+            # If there are k elements in M
             if len(M[0]) == k:
                 break
 
-    # If the tuples can't be extended then return empty list
-    if len(M[0]) != k:
-        return []
-    else:
-        return M
+    if len(M[0]) == k:
+        # and they satisfy the inner and outer nbr conditions then return M
+        satisfies_in = np.array_equal(induced_subgraph_matrix(A, M[0]), induced_subgraph_matrix(A, M[1]))
+        satisfies_out = satisfies_outer(A, M)
+        if satisfies_in and satisfies_out:
+            return M
+
+    return []
 
 
-def add_3rd_ktuple(A: np.ndarray, N_priv: np.ndarray, M: list, c: int) -> list:
+def add_ktuple(A: np.ndarray, N_priv: np.ndarray, M: list, c: int) -> list:
     """
-    Orders 3 tuples in the k-module
+    Adds another k-tuple to M, if it's the 3rd one then it also reorders first 2 tuples in the k-module
     Args:
         A: Adjacency matrix
         N_priv: Matrix of private neighbors
         M: List of k-tuples
-        c: Third node
+        c: New node
     Returns:
         M_: the extended k-module
     """
 
     # Check if there are 2 k-tuples in M
-    if len(M) != 2:
-        raise ValueError(f'The number of tuples ({len(M)}) is not 2')
+    if len(M) < 2:
+        raise ValueError(f'The number of tuples ({len(M)}) is less than 2')
 
     # Match the 3rd node with the first 2 nodes
+    num_tuple = len(M)
     k = len(M[0])
-    f = dict(zip(M[0], M[1]))
+    # f = dict(zip(M[0], M[1]))  # The first matching is already in M
     mtch1 = match_tuples(A, N_priv, c, M[0][0], k)
     mtch2 = match_tuples(A, N_priv, c, M[1][0], k)
+
+    if len(mtch1) != len(mtch2):
+        print()
+        print('M: ', M)
+        print('c: ', c)
+        print(f'Matching 1: {mtch1}')
+        print(f'Matching 2: {mtch2}')
+        raise ValueError(f'The number of nodes in the 2 matchings is not the same ({len(mtch1)} != {len(mtch2)})')
 
     # Pick the matchings that are not matched to themselves and not in the tuples
     f1, f2 = {}, {}
@@ -356,7 +445,7 @@ def add_3rd_ktuple(A: np.ndarray, N_priv: np.ndarray, M: list, c: int) -> list:
         key2 = keys2[i]
         if mtch1[key1] != key1 and key1 not in M[0] and key1 not in M[1]:
             f1[key1] = mtch1[key1]
-        if mtch2[key2] != key2 and key1 not in M[0] and key1 not in M[1]:
+        if mtch2[key2] != key2 and key2 not in M[0] and key2 not in M[1]:
             f2[key2] = mtch2[key2]
 
     # If the matching are empty or bigger than k then return the original k-module
@@ -364,13 +453,14 @@ def add_3rd_ktuple(A: np.ndarray, N_priv: np.ndarray, M: list, c: int) -> list:
         return M
 
     # Create the extended k-module
-    M_ = [M[0], M[1], tuple(f1.keys())]
+    M_ = M.copy()
+    M_.append(tuple(f1.keys()))
 
     # Extend the 3rd tuple if needed
-    if len(M_[2]) < k:
+    if len(M_[-1]) < k:
         # Get the neighbors of the nodes
-        keys_list = list(f1.keys())
-        possible_nbrs_c = np.delete(keys_list, np.where(keys_list == c)[0])
+        possible_nbrs_c = list(f1.keys())
+        possible_nbrs_c.remove(c)
         for nbr_c in possible_nbrs_c:
             nbr_a = f1[nbr_c]
             nbr_b = f2[nbr_c]
@@ -391,32 +481,33 @@ def add_3rd_ktuple(A: np.ndarray, N_priv: np.ndarray, M: list, c: int) -> list:
                 if mtch4[key4] != key4 and key4 not in f2.keys():
                     f4[key4] = mtch4[key4]
 
-            # Check if the matchings are transitive
-            # transitive = [f[f3[i]] == f4[i] for i in f3.keys()]
-            # if not all(transitive):
-            #     return M
-
             for i in f3.keys():
-                if i not in M_[0] and i not in M_[1] and i not in M_[2] and len(M_[2]) < k:
+                # Check if the key is already in other tuples
+                is_taken = [i in M_[j] for j in range(num_tuple)]
+                if not (any(is_taken)) and len(M_[-1]) < k:
                     # Extend f1, f2 and M_[2]
                     f1[i] = f3[i]
                     f2[i] = f4[i]
-                    M_[2] += (i,)
+                    M_[-1] += (i,)
 
             # If there are k elements in M then break
-            if len(M_[2]) == k:
+            if len(M_[-1]) == k:
                 break
 
     # If the tuple can't be extended then return M
-    if len(M_[2]) != k:
+    if len(M_[-1]) != k:
         return M
 
-    # Reassign nodes to tuples if they are common neighbors
-    t_a, t_b, t_c = list(M_[0]), list(M_[1]), list(M_[2])
-    T_a = induced_subgraph_matrix(A, t_a)
-    T_c = induced_subgraph_matrix(A, t_c)
+    # Testing for inner and outer nbr conditions
+    t_a, t_b, t_c = list(M_[0]), list(M_[1]), list(M_[-1])
+    T_a, T_c = induced_subgraph_matrix(A, t_a), induced_subgraph_matrix(A, t_c)
+    satisfies_in = np.array_equal(T_a, T_c)
+    satisfies_out = satisfies_outer(A, M_)
 
-    if not(np.array_equal(T_a, T_c)):
+    if satisfies_in and satisfies_out:
+        return M_
+    elif satisfies_out and num_tuple == 2:
+        # Try reassigning nodes to tuples
         row_indices = np.where(~(T_a == T_c).all(axis=1))[0]
         for i in row_indices:
             # Try swapping the nodes in t_a and t_c
@@ -424,40 +515,26 @@ def add_3rd_ktuple(A: np.ndarray, N_priv: np.ndarray, M: list, c: int) -> list:
 
             # Check if now the induced subgraphs are equal
             if np.array_equal(induced_subgraph_matrix(A, t_a), induced_subgraph_matrix(A, t_c)):
-                break
+                M_ = [tuple(t_a), tuple(t_b), tuple(t_c)]
+                return M_
             else:
                 # Revert the swap
                 t_a[i], t_b[i] = t_b[i], t_a[i]
-
-    M_ = [tuple(t_a), tuple(t_b), tuple(t_c)]
-
-    return M_
-
-
-def extend_module(A: np.ndarray, N_priv: np.ndarray, M: list, v: int) -> list:
-    """
-    Extends the k-module by adding another tuple (v, ...)
-    Args:
-        A: Adjacency matrix
-        N_priv: Private neighbors
-        M: K-module
-        v: Node to add to the k-module
-
-    Returns:
-        M: Extended k-module
-    """
-
-    # TODO: Implement
+        # Not a valid tuple
+        return M
+    else:
+        # Not a valid tuple
+        return M
 
 
-def find_kmodule(A: np.ndarray, k: int, r: int) -> list:
+def find_kmodule(A: np.ndarray, k: int, qr: int) -> list:
     """
     Finds a k-module in a graph
 
     Arguments:
     A: Adjacency matrix of the graph to find the k-module in
     k: Size of the k-module
-    r: Quantifier rank
+    qr: Quantifier rank
 
     Returns:
     M: List of k-tuples
@@ -470,112 +547,145 @@ def find_kmodule(A: np.ndarray, k: int, r: int) -> list:
     M = []
 
     # Pick a1
-    for a1 in range(1, 2):  # TODO: Change to range(A.shape[0])
+    for a1 in range(A.shape[0]):
+        # Skip if the node is removed
+        if A[a1, a1] == -1:
+            continue
+
         # Partition a1's private neighbors indices by the number of a1's private neighbors from that vertex
-        partition = partition_private_neigh(A, N_priv, a1, r)
+        partition = partition_private_neigh(A, N_priv, a1, k, qr)
+        # print(a1, partition)
 
         # Iterate over partitions to find a possible k-tuple for a1
         for key in partition:
             P = partition[key]
             startId = 0
-            b1, c1, v = -1, -1, -1
+            b1, v = -1, -1
 
-            # Pick b1
-            for id_b1, b1 in enumerate(P):
+            # First try creating a 2 k-tuple
+            for b1 in P:
                 startId += 1
 
                 M = find_2ktuples(A, N_priv, a1, b1, k)
                 if len(M) == 2:
-                    print(f'For {a1} and {b1}, M is: {M}')
                     break
 
-            # Pick c1
-            for id_c1, c1 in enumerate(P[startId:]):
-                startId += 1
-                M = add_3rd_ktuple(A, N_priv, M, c1)
+            # Then try adding new k-tuples to M
+            for v in P[startId:]:
+                # Check if v is not already in M
+                is_not_used = [v not in M[i] for i in range(len(M))]
+                if all(is_not_used):
+                    M = add_ktuple(A, N_priv, M, v)
 
-                if len(M) == 3:
-                    break
-
-            # Find the remaining tuples
-            for id_v, v in enumerate(P[startId:]):
-                # Match v with a1, b1, and c1
-                # TODO: Implement matching
-                matchings = [None, None, None]
-
-    return M
+            if len(M) > qr:
+                return M
+    return []
 
 
-# Main
-from plot import *
-
-
-def print_array(A: np.ndarray):
+def simplify_graph(G: nx.Graph, qr: int, displays: bool = False, k_max: int = 5) -> nx.Graph:
     """
-    Prints an array in a nice format
+    Simplifies a graph by removing nodes with degree less than k
 
     Arguments:
-    A: Array to print
+    G: Graph to simplify
+    r: Quantifier rank
+    displays: Whether to display progress
+    k_max: Maximum size of the k-module to look for
+
+    Returns:
+    G2: Simplified graph
     """
 
-    for i in range(A.shape[0]):
-        for j in range(A.shape[1]):
-            print(A[i, j], end="  ")
-        print("")
+    # Copy the graph
+    A = graph_to_adjacency(G)
+
+    # Lambda function for getting the number of nodes
+    num_nodes = lambda A: sum([1 if A[i, i] != -1 else 0 for i in range(A.shape[0])])
+
+    # Start checking from k=1 modules
+    k = 1
+    while k <= num_nodes(A) / (qr + 1) and k <= k_max:
+        # Displaying progress...
+        if displays:
+            print(f'Looking for k={k}...')
+
+        has_kmodules = True
+        while has_kmodules:
+
+            # Checking for k-modules...
+            M = find_kmodule(A, k, qr)
+
+            if len(M) == 0:
+                # When there is no modules then stop looking for k
+                has_kmodules = False
+            else:
+                if displays:
+                    print(f'Removing {M[qr:]} from {M}')
+                # Removing |M| - qr of those from G2
+                to_remove = [node for subgraph in M[qr:] for node in subgraph]
+                # Remove the nodes from the adjacency matrix
+                A = remove_nodes(A, to_remove)
+
+        # Increase the k for the next step
+        k += 1
+        # Print the number of removed vertices
+    if displays:
+        # print('\n--------------------------------------------------------------------------\n')
+        print(f'Removed {A.shape[0] - num_nodes(A)} vertices')
+
+    # Return the simplified graph
+    G2 = adjacency_to_graph(A)
+    return G2
 
 
 if __name__ == "__main__":
-    # Create the graph
-    G = nx.Graph()
-    G.add_nodes_from(range(17))
-    G.add_edges_from([(0, 1), (1, 2), (1, 3),
-                      (0, 4), (4, 5), (4, 6),
-                      (0, 7), (7, 8), (7, 9),
-                      (0, 10), (10, 11), (10, 12),
-                      (3, 13), (6, 14), (9, 15), (12, 16),
-                      (13, 17), (14, 17), (15, 17), (16, 17)
-                      ])
+    displays = True
+    execute = [0, 1, 2]
 
-    # Convert the graph to an adjacency matrix
-    A = graph_to_adjacency(G)
+    if 0 in execute:
+        print('First graph:')
+        # Create a balanced tree
+        h = 3
+        G = create_tree(h=h, children=[2, 3, 4])
+        A = graph_to_adjacency(G)
+        N_priv = private_neigh(A)
 
-    # Find a k-module
-    print('First graph:')
-    # M = find_kmodule(A, k=4, r=2)
+        G2 = simplify_graph(G, qr=2, displays=displays)
+        find_kmodule(A, k=1, qr=2)
+        print('-------------------------------------------------------------------------------------------\n')
+    if 1 in execute:
+        print('Second graph:')
+        # Create the graph
+        G = nx.Graph()
+        G.add_nodes_from(range(17))
+        G.add_edges_from([(0, 1), (1, 2), (1, 3),
+                          (0, 4), (4, 5), (4, 6),
+                          (0, 7), (7, 8), (7, 9),
+                          (0, 10), (10, 11), (10, 12),
+                          (3, 13), (6, 14), (9, 15), (12, 16),
+                          (13, 17), (14, 17), (15, 17), (16, 17)
+                          ])
 
-    ###############################################################################################
-    G2 = nx.Graph()
-    G2.add_nodes_from(range(17))
-    G2.add_edges_from([(0, 1), (1, 5), (1, 8), (1, 11), (1, 3), (2, 3),
-                       (0, 4), (4, 2), (4, 8), (4, 11), (4, 6), (5, 6),
-                       (0, 7), (7, 2), (7, 5), (7, 11), (7, 9), (8, 9),
-                       (0, 10), (10, 2), (10, 5), (10, 8), (10, 12), (11, 12),
-                       # (3, 13), (3, 14), (3, 15), (3, 16),
-                       # (6, 14), (6, 13), (6, 15), (6, 16),
-                       # (9, 15), (9, 13), (9, 14), (9, 16),
-                       # (12, 16), (12, 13), (12, 14), (12, 15),
-                       (3, 17), (6, 17), (9, 17), (12, 17)
-                       ])
+        # Convert the graph to an adjacency matrix
+        A = graph_to_adjacency(G)
 
-    # Convert the graph to an adjacency matrix
-    A2 = graph_to_adjacency(G2)
+        # Find a k-module
+        G_ = simplify_graph(G, qr=2, displays=displays)
+        print('-------------------------------------------------------------------------------------------\n')
+    if 2 in execute:
+        print('Third graph:')
+        G2 = nx.Graph()
+        G2.add_nodes_from(range(14))
+        G2.add_edges_from([(0, 1), (1, 5), (1, 8), (1, 11), (1, 3), (2, 3),
+                           (0, 4), (4, 2), (4, 8), (4, 11), (4, 6), (5, 6),
+                           (0, 7), (7, 2), (7, 5), (7, 11), (7, 9), (8, 9),
+                           (0, 10), (10, 2), (10, 5), (10, 8), (10, 12), (11, 12),
+                           (3, 13), (6, 13), (9, 13), (12, 13)
+                           ])
 
-    print('----------------------------------------------------')
-    print('Second graph:')
-    M2 = find_kmodule(A2, k=3, r=2)
+        # Convert the graph to an adjacency matrix
+        A2 = graph_to_adjacency(G2)
 
-    # N_priv = private_neigh(A2)
-    # M = find_ktuples(A2, N_priv, [1, 10], k=4)
-    # print('M: ', M)
-
-    # Print the k-module
-    # print(M)
-
-    # G3 = nx.Graph()
-    # G3.add_nodes_from(range(4))
-    # G3.add_edges_from([(0, 1), (0, 3), (2, 1), (2, 3)])
-    #
-    # A3 = graph_to_adjacency(G3)
-    # N_priv = private_neigh(A3)
-    # f = match_tuples(A3, N_priv, 0, 2, 2)
-    # print(f)
+        # Simplify the graph
+        G2_ = simplify_graph(G2, qr=2, displays=displays)
+        print('-------------------------------------------------------------------------------------------\n')
