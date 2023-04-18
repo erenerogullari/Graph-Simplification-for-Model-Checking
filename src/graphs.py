@@ -95,6 +95,33 @@ def create_tree(h: int, children: list = [], rmv: list = []) -> nx.classes.graph
     return T
 
 
+def create_random_tree(h: int, seed: int = 0) -> nx.classes.graph.Graph:
+    """
+    Creates a random tree in a simple way
+    Args:
+        h: Height of the tree
+        seed: Seed value
+
+    Returns:
+        T: Resulting tree
+    """
+
+    # Set the seed
+    random.seed(seed)
+
+    # Create a list of number of children for a parent at each height
+    children = [random.randint(1, 3) for i in range(h)]
+
+    # Create a list of nodes to remove by picking some random nodes
+    num_rmv = random.randint(0, int(h/2))
+    rmv = random.sample(range(1, 2**h), num_rmv)
+
+    # Create the tree
+    T = create_tree(h, children, rmv)
+
+    return T
+
+
 def create_kpartite(sizes: tuple, complete: bool = False) -> nx.classes.graph.Graph:
     """
     Creates a k-partite graph in a simple way
@@ -151,13 +178,14 @@ def create_kpartite(sizes: tuple, complete: bool = False) -> nx.classes.graph.Gr
     return G
 
 
-def create_random(n: int, p: float) -> nx.classes.graph.Graph:
+def create_random(n: int, p: float, seed: int = 0) -> nx.classes.graph.Graph:
     """
-    Creates a random graph in a simple way
+    Creates a random graph in a simple way using a seed value
 
     Arguments:
     n: Number of nodes
     p: Probability of an edge
+    seed: Seed value
 
     Returns:
     G: Resulting graph
@@ -168,6 +196,9 @@ def create_random(n: int, p: float) -> nx.classes.graph.Graph:
 
     # Add the nodes
     G.add_nodes_from(list(range(n)))
+
+    # Set the seed
+    random.seed(seed)
 
     # Add the edges
     for i in range(n):

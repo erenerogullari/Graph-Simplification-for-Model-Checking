@@ -2,6 +2,7 @@ import networkx as nx
 import numpy as np
 from networkx.algorithms import isomorphism
 from graphs import *
+from plot import *
 
 
 def graph_to_adjacency(G: nx.classes.graph.Graph) -> np.ndarray:
@@ -18,8 +19,8 @@ def graph_to_adjacency(G: nx.classes.graph.Graph) -> np.ndarray:
     # Get the nodes in G as a list
     nodes = list(G.nodes)
 
-    # Get the node with max value
-    n = max(nodes)
+    # Get the size of the matrix
+    n = max(nodes) + 1
 
     # Create the adjacency matrix
     A = np.zeros((n, n), dtype=int)
@@ -28,11 +29,11 @@ def graph_to_adjacency(G: nx.classes.graph.Graph) -> np.ndarray:
     for i in range(n):
         if i not in nodes:
             A[i, i] = -1
-            continue
-        for j in range(i + 1, n):
-            if j in nodes and G.has_edge(i, j):
-                A[i, j] = 1
-                A[j, i] = 1
+        else:
+            for j in range(i + 1, n):
+                if j in nodes and G.has_edge(i, j):
+                    A[i, j] = 1
+                    A[j, i] = 1
 
     return A
 
@@ -336,6 +337,39 @@ def satisfies_outer(A: np.ndarray, M: list) -> bool:
     return True
 
 
+def satisfies_inner(A: np.ndarray, M: list) -> bool:
+    """
+    Checks if a list of 2 k-tuples satisfies the inner neighborhood conditions
+
+    Arguments:
+    A: Adjacency matrix of the graph to find the k-module in
+    M: List of k-tuples
+
+    Returns:
+    is_valid: True if the list of k-tuples is a k-module, False otherwise
+    """
+
+    # Check if there are less than 2 k-tuples in M
+    if len(M) != 2:
+        raise ValueError(f'The number of tuples ({len(M)}) is not 2')
+
+    k = len(M[0])
+    for i in range(k):
+        # Get the nodes
+        a = M[0][i]
+        b = M[1][i]
+        # Iterate over the other levels
+        for j in range(i+1, k):
+            nbr_a = A[a][M[1][j]] == 1
+            nbr_b = A[b][M[0][j]] == 1
+            if nbr_a and not nbr_b:
+                return False
+            elif nbr_b and not nbr_a:
+                return False
+
+    return True
+
+
 def find_2ktuples(A: np.ndarray, N_priv: np.ndarray, a: int, b: int, k: int) -> list:
     """
     Finds 2 k-tuples using the neighbors of a and b
@@ -396,10 +430,11 @@ def find_2ktuples(A: np.ndarray, N_priv: np.ndarray, a: int, b: int, k: int) -> 
                 break
 
     if len(M[0]) == k:
-        # and they satisfy the inner and outer nbr conditions then return M
-        satisfies_in = np.array_equal(induced_subgraph_matrix(A, M[0]), induced_subgraph_matrix(A, M[1]))
+        # and they satisfy the neccessary conditions then return M
+        isomorphic = np.array_equal(induced_subgraph_matrix(A, M[0]), induced_subgraph_matrix(A, M[1]))
+        satisfies_in = satisfies_inner(A, M)
         satisfies_out = satisfies_outer(A, M)
-        if satisfies_in and satisfies_out:
+        if isomorphic and satisfies_out and satisfies_in:
             return M
 
     return []
@@ -501,10 +536,12 @@ def add_ktuple(A: np.ndarray, N_priv: np.ndarray, M: list, c: int) -> list:
     # Testing for inner and outer nbr conditions
     t_a, t_b, t_c = list(M_[0]), list(M_[1]), list(M_[-1])
     T_a, T_c = induced_subgraph_matrix(A, t_a), induced_subgraph_matrix(A, t_c)
-    satisfies_in = np.array_equal(T_a, T_c)
+    isomorphic = np.array_equal(T_a, T_c)
+    satisfies_in1 = satisfies_inner(A, [M_[0], M_[-1]])
+    satisfies_in2 = satisfies_inner(A, [M_[1], M_[-1]])
     satisfies_out = satisfies_outer(A, M_)
 
-    if satisfies_in and satisfies_out:
+    if isomorphic and satisfies_in1 and satisfies_in2 and satisfies_out:
         return M_
     elif satisfies_out and num_tuple == 2:
         # Try reassigning nodes to tuples
@@ -513,8 +550,11 @@ def add_ktuple(A: np.ndarray, N_priv: np.ndarray, M: list, c: int) -> list:
             # Try swapping the nodes in t_a and t_c
             t_a[i], t_b[i] = t_b[i], t_a[i]
 
-            # Check if now the induced subgraphs are equal
-            if np.array_equal(induced_subgraph_matrix(A, t_a), induced_subgraph_matrix(A, t_c)):
+            # Check if now the induced subgraphs are equal and the inner condi,tions are satisfied
+            isomorphic = np.array_equal(induced_subgraph_matrix(A, t_a), induced_subgraph_matrix(A, t_c))
+            satisfies_in1 = satisfies_inner(A, [tuple(t_a), tuple(t_c)])
+            satisfies_in2 = satisfies_inner(A, [tuple(t_b), tuple(t_c)])
+            if isomorphic and satisfies_in1 and satisfies_in2:
                 M_ = [tuple(t_a), tuple(t_b), tuple(t_c)]
                 return M_
             else:
@@ -640,7 +680,7 @@ def simplify_graph(G: nx.Graph, qr: int, displays: bool = False, k_max: int = 5)
 
 if __name__ == "__main__":
     displays = True
-    execute = [0, 1, 2]
+    execute = [0,1,2]
 
     if 0 in execute:
         print('First graph:')
@@ -689,3 +729,12 @@ if __name__ == "__main__":
         # Simplify the graph
         G2_ = simplify_graph(G2, qr=2, displays=displays)
         print('-------------------------------------------------------------------------------------------\n')
+    if 3 in execute:
+        # Random tree
+        T = nx.random_tree(15)
+
+        # Simplify the graph
+        T_ = simplify_graph(T, qr=1, displays=displays)
+
+        # Plot the graphs
+        draw_graphs(T, T_, planar=True)

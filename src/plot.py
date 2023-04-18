@@ -60,3 +60,5 @@ def draw_graphs(G1: nx.classes.graph.Graph, G2: nx.classes.graph.Graph, title: s
         fig.suptitle(title)
     subax1.set_title('Original Graph')
     subax2.set_title('Simplified Graph')
+
+    plt.show()
